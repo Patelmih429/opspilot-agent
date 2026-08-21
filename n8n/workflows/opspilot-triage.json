@@ -1,0 +1,99 @@
+{
+  "id": "opspilotIncidentTriage",
+  "name": "OpsPilot Incident Triage",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "incident-triage",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "5ae66e2b-89ca-49d8-b635-ec3ff177aa11",
+      "name": "Incident Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-500, 0],
+      "webhookId": "7738df30-afc0-4c74-8ebd-8b55a479fc54"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8080/api/v1/incidents",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.OPSPILOT_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.body) }}",
+        "options": {}
+      },
+      "id": "d27593da-cae1-4bc6-8653-426481fd76c3",
+      "name": "Create Incident",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [-260, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://api:8080/api/v1/incidents/{{ $json.id }}/triage",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.OPSPILOT_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f2553601-b0a0-42a9-ae78-bd16084f82ef",
+      "name": "Run Triage Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [-20, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "f527effa-6e26-436d-9cdd-0ae6bd2833bf",
+      "name": "Return Recommendation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [220, 0]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Incident Webhook": {
+      "main": [[{"node": "Create Incident", "type": "main", "index": 0}]]
+    },
+    "Create Incident": {
+      "main": [[{"node": "Run Triage Agent", "type": "main", "index": 0}]]
+    },
+    "Run Triage Agent": {
+      "main": [[{"node": "Return Recommendation", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8cd1ac54-3ce6-45bc-9ced-da9e0c8b405d",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

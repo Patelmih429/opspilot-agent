@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: opspilot
+      POSTGRES_USER: opspilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-opspilot}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opspilot -d opspilot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/opspilot
+      DATABASE_USERNAME: opspilot
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-opspilot}
+      OPSPILOT_API_KEY: ${OPSPILOT_API_KEY:-dev-only-change-me}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    ports:
+      - "8080:8080"
+
+  n8n-import:
+    image: docker.n8n.io/n8nio/n8n:2.35.5
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["n8n import:workflow --input=/workflows/opspilot-triage.json"]
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-local-development-encryption-key}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/workflows:ro
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.35.5
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-local-development-encryption-key}
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://localhost:5678/
+      GENERIC_TIMEZONE: America/New_York
+      OPSPILOT_API_KEY: ${OPSPILOT_API_KEY:-dev-only-change-me}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+    depends_on:
+      n8n-import:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+    volumes:
+      - n8n_data:/home/node/.n8n
+    ports:
+      - "5678:5678"
+
+volumes:
+  postgres_data:
+  n8n_data:
